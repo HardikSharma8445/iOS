@@ -2,61 +2,56 @@ workflows:
   ios-workflow:
     name: iOS HelloWorld Build
     environment:
-      vars:
-        APP_ID: "com.ficode.helloworld"
-        BUNDLE_ID: "com.ficode.helloworld"
-        APP_NAME: "HelloWorld"
-        XCODE_WORKSPACE: "Runner.xcworkspace"
-        XCODE_SCHEME: "Runner"
-        DEVELOPMENT_TEAM: "8QF5HJCTR8"
-        CODE_SIGN_IDENTITY: "Apple Distribution"
-        PROVISIONING_PROFILE_SPECIFIER: "ficode_helloworld_distribution"
       flutter: stable
       xcode: latest
       cocoapods: default
-      signing:
-        provisioning_profiles:
-          com.ficode.helloworld: ficode_helloworld_distribution
+      vars:
+        APP_NAME: "hello_world"
+        DEVELOPMENT_TEAM: "8QF5HJCTR8"
+        PROVISIONING_PROFILE_NAME: "ficode_helloworld_distribution"
     scripts:
       - name: Install dependencies
+        working_directory: hello_world
         script: |
           flutter pub get
           cd ios
           pod install
           cd ..
-      - name: Set up keychain and certificates
-        script: |
-          KEYCHAIN_PASSWORD="codemagic"
-          security create-keychain -p "$KEYCHAIN_PASSWORD" ios-build.keychain
-          security default-keychain -s ios-build.keychain
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" ios-build.keychain
-          security set-keychain-settings ios-build.keychain
 
-          # Import certificate (make sure it's uploaded in the CodeMagic UI as secure ENV VAR)
-          echo $CM_CERTIFICATE | base64 --decode > signing_certificate.p12
-          security import signing_certificate.p12 -k ios-build.keychain -P $CM_CERTIFICATE_PASSWORD -T /usr/bin/codesign
-
-          # Set key partition list (fixes macOS 13+ signing issues)
-          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" ios-build.keychain
-      - name: Build iOS release
+      - name: Decode signing files
+        working_directory: hello_world
         script: |
-          flutter build ios --release \
-            --no-codesign \
-            --build-name=1.0.0 \
-            --build-number=1
-          
-          xcodebuild -workspace ios/$XCODE_WORKSPACE \
-            -scheme $XCODE_SCHEME \
+          echo $CERTIFICATE | base64 --decode > certificate.p12
+          echo $PROVISIONING_PROFILE | base64 --decode > profile.mobileprovision
+
+      - name: Set up keychain and provisioning profile
+        working_directory: hello_world
+        script: |
+          KEYCHAIN_PATH="$HOME/Library/Keychains/login.keychain-db"
+          security import certificate.p12 -k "$KEYCHAIN_PATH" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+
+      - name: Build and archive iOS app
+        working_directory: hello_world
+        script: |
+          xcodebuild -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
             -configuration Release \
             -archivePath build/ios/archive.xcarchive \
-            archive \
             DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM \
-            CODE_SIGN_IDENTITY="$CODE_SIGN_IDENTITY" \
-            PROVISIONING_PROFILE_SPECIFIER="$PROVISIONING_PROFILE_SPECIFIER"
-          
+            PROVISIONING_PROFILE_SPECIFIER=$PROVISIONING_PROFILE_NAME \
+            archive
+
           xcodebuild -exportArchive \
             -archivePath build/ios/archive.xcarchive \
             -exportOptionsPlist ios/ExportOptions.plist \
             -exportPath build/ios/out
+
     artifacts:
-      - build/ios/out/*.ipa
+      - hello_world/build/ios/out/*.ipa
+
+    publishing:
+      email:
+        recipients:
+          - hardik.sharma@ficode.com
