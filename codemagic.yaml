@@ -8,29 +8,47 @@ workflows:
       vars:
         APP_NAME: "hello_world"
       groups:
-        - ios
+        - ios # Contains CERTIFICATE, CERTIFICATE_PASSWORD, PROVISIONING_PROFILE
     scripts:
       - name: Install dependencies
         working_directory: hello_world
         script: |
           flutter pub get
+
       - name: Decode signing files
         working_directory: hello_world
         script: |
           echo $CERTIFICATE | base64 --decode > certificate.p12
           echo $PROVISIONING_PROFILE | base64 --decode > profile.mobileprovision
+
       - name: Set up keychain and provisioning profile
         working_directory: hello_world
         script: |
           KEYCHAIN_PATH="$HOME/Library/Keychains/login.keychain-db"
           security import certificate.p12 -k "$KEYCHAIN_PATH" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          UUID=$(grep -a -o "UUID[^<]*" profile.mobileprovision | cut -d '>' -f2 | cut -d'<' -f1)
+
+          UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" /dev/stdin <<< $(security cms -D -i profile.mobileprovision))
           cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
+
       - name: Build iOS app
         working_directory: hello_world
         script: |
-          flutter build ios --release
+          flutter build ios --release --no-codesign
+
+          xcodebuild -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -archivePath $PWD/build/Runner.xcarchive \
+            archive CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM=8QF5HJCTR8 \
+            PROVISIONING_PROFILE_SPECIFIER=$UUID
+
+          xcodebuild -exportArchive \
+            -archivePath $PWD/build/Runner.xcarchive \
+            -exportOptionsPlist ios/ExportOptions.plist \
+            -exportPath $PWD/build/ios/ipa
 
     artifacts:
       - hello_world/build/ios/ipa/*.ipa
