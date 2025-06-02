@@ -1,26 +1,18 @@
 workflows:
   ios-workflow:
-    name: iOS Build & Upload
+    name: iOS Build
     environment:
       flutter: stable
       xcode: latest
       cocoapods: default
       groups:
-        - ios # Contains CERTIFICATE_BASE64, CERTIFICATE_PASSWORD, PROVISION_PROFILE_BASE64
-      vars:
-        APP_ID: com.ficode.helloworld
-        TEAM_ID: 86L854D6DS
-        PROVISIONING_PROFILE_NAME: ficode_helloworld_distribution
-
-    integrations:
-      app_store_connect: BSM CI/CD Pipeline # This should match the integration name in Codemagic UI
-
+        - ios
     scripts:
-      - name: Build and export .ipa
+      - name: Move into Flutter project directory
         script: |
           cd hello_world
 
-          echo "Installing dependencies..."
+          echo "Running flutter pub get..."
           flutter pub get
 
           echo "Decoding and importing certificate..."
@@ -36,24 +28,28 @@ workflows:
           cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
 
           echo "Building Flutter iOS app..."
-          flutter build ios --release
+          flutter build ios --release --no-codesign
 
           echo "Archiving app with xcodebuild..."
           xcodebuild -workspace ios/Runner.xcworkspace \
                      -scheme Runner \
                      -archivePath build/Runner.xcarchive \
-                     archive
+                     archive \
+                     -allowProvisioningUpdates
 
-          echo "Exporting .ipa for App Store..."
+          echo "Exporting .ipa file..."
           xcodebuild -exportArchive \
                      -archivePath build/Runner.xcarchive \
                      -exportOptionsPlist ios/ExportOptions.plist \
-                     -exportPath build/ios/ipa
+                     -exportPath build
 
     artifacts:
-      - hello_world/build/ios/ipa/*.ipa
+      - hello_world/build/*.ipa
 
     publishing:
       app_store_connect:
-        auth: integration
-        submit_to_testflight: true
+        api_key: $APP_STORE_CONNECT_API_KEY
+        api_issuer: $APP_STORE_CONNECT_API_ISSUER
+        apple_id: $APPLE_ID
+        app_identifier: com.ficode.helloworld
+        ipa_path: hello_world/build/Runner.ipa
