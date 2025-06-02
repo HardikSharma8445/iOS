@@ -1,6 +1,8 @@
 workflows:
   ios-workflow:
     name: iOS App Store Build with Automatic Signing
+    integrations:
+      app_store_connect: BSM CI/CD Pipeline   # Replace with your integration ID from Codemagic UI
 
     environment:
       vars:
