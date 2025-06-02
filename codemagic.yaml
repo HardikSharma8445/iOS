@@ -1,55 +1,63 @@
 workflows:
-  ios-workflow:
-    name: iOS HelloWorld Build
+  ios-app-store:
+    name: iOS App Store Build
     environment:
-      flutter: stable
-      xcode: latest
-      cocoapods: default
       vars:
-        APP_NAME: "hello_world"
-        DEVELOPMENT_TEAM: "8QF5HJCTR8"
+        XCODE_WORKSPACE: "Runner.xcworkspace"
+        XCODE_SCHEME: "Runner"
+        BUNDLE_ID: "com.ficode.helloworld"
+        DEVELOPMENT_TEAM: "8QF5HJCTR8"   # Replace with your actual Team ID
+      xcode: 16.3
+      cocoapods: default
+      flutter: stable
     scripts:
       - name: Install dependencies
-        working_directory: hello_world
         script: |
           flutter pub get
-          cd ios
-          pod install
-          cd ..
-
-      - name: Decode signing files
-        working_directory: hello_world
-        script: |
-          echo $CERTIFICATE | base64 --decode > certificate.p12
-          echo $PROVISIONING_PROFILE | base64 --decode > profile.mobileprovision
-
-      - name: Set up keychain and provisioning profile
-        working_directory: hello_world
-        script: |
-          KEYCHAIN_PATH="$HOME/Library/Keychains/login.keychain-db"
-          security import certificate.p12 -k "$KEYCHAIN_PATH" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
 
       - name: Build and archive iOS app
-        working_directory: hello_world
         script: |
-          xcodebuild -workspace ios/Runner.xcworkspace \
-            -scheme Runner \
+          flutter build ios --release --no-codesign
+
+          xcodebuild clean
+
+          xcodebuild archive \
+            -workspace ios/$XCODE_WORKSPACE \
+            -scheme $XCODE_SCHEME \
             -configuration Release \
             -archivePath build/ios/archive.xcarchive \
-            DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM \
-            archive
+            -destination 'generic/platform=iOS' \
+            -allowProvisioningUpdates \
+            CODE_SIGN_STYLE=Automatic \
+            DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM
+
+      - name: Export IPA
+        script: |
+          cat > ios/exportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store</string>
+            <key>signingStyle</key>
+            <string>automatic</string>
+            <key>stripSwiftSymbols</key>
+            <true/>
+            <key>compileBitcode</key>
+            <true/>
+            <key>teamID</key>
+            <string>$DEVELOPMENT_TEAM</string>
+          </dict>
+          </plist>
+          EOF
 
           xcodebuild -exportArchive \
             -archivePath build/ios/archive.xcarchive \
-            -exportOptionsPlist ios/ExportOptions.plist \
-            -exportPath build/ios/out
+            -exportOptionsPlist ios/exportOptions.plist \
+            -exportPath build/ios/output \
+            -allowProvisioningUpdates
 
     artifacts:
-      - hello_world/build/ios/out/*.ipa
-
-    publishing:
-      email:
-        recipients:
-          - hardik.sharma@ficode.com
+      - build/ios/output/*.ipa
+      - build/ios/archive.xcarchive
