@@ -6,7 +6,7 @@ workflows:
       xcode: latest
       cocoapods: default
       groups:
-        - ios # Contains CERTIFICATE_BASE64, CERTIFICATE_PASSWORD, PROVISION_PROFILE_BASE64, and APP_STORE_CONNECT_API_KEY
+        - ios # Contains CERTIFICATE_BASE64, CERTIFICATE_PASSWORD, PROVISION_PROFILE_BASE64
       vars:
         APP_ID: com.ficode.helloworld
         PROVISIONING_PROFILE_NAME: ficode_helloworld_distribution
@@ -50,6 +50,5 @@ workflows:
 
     publishing:
       app_store_connect:
-        auth:
-          api_key: $APP_STORE_CONNECT_API_KEY
+        auth: integration
         submit_to_testflight: true
