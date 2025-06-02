@@ -1,50 +1,21 @@
 workflows:
-  ios-workflow:
-    name: iOS Build & Archive
-    max_build_duration: 60
+  flutter-workflow:
+    name: Build hello_world app
     environment:
-      vars:
-        TEAM_ID: 8QF5HJCTR8
-        APP_IDENTIFIER: com.ficode.helloworld
-        PROVISIONING_PROFILE_SPECIFIER: ficode_helloworld_distribution
-        EXPORT_METHOD: app-store  # or 'ad-hoc', 'development'
-
+      working_directory: hello_world
       flutter: stable
       xcode: latest
       cocoapods: default
-
     scripts:
       - name: Install dependencies
-        script: |
-          flutter pub get
-          pod install --project-directory=ios
+        script: flutter pub get
 
-      - name: Build and archive iOS app
-        script: |
-          set -o pipefail
-          xcodebuild archive \
-            -workspace ios/Runner.xcworkspace \
-            -scheme Runner \
-            -configuration Release \
-            -archivePath $CM_BUILD_DIR/Runner.xcarchive \
-            PROVISIONING_PROFILE_SPECIFIER="$PROVISIONING_PROFILE_SPECIFIER" \
-            DEVELOPMENT_TEAM="$TEAM_ID" \
-            clean archive | tee xcodebuild.log | xcbeautify
+      - name: Build iOS IPA
+        script: flutter build ios --release --no-codesign
 
-          xcodebuild -exportArchive \
-            -archivePath $CM_BUILD_DIR/Runner.xcarchive \
-            -exportOptionsPlist ios/ExportOptions.plist \
-            -exportPath $CM_BUILD_DIR/exported | tee export.log | xcbeautify
+      - name: Build Android APK
+        script: flutter build apk --release
 
     artifacts:
-      - $CM_BUILD_DIR/exported/*.ipa
-      - ios/Runner.xcarchive
-
-code_signing:
-  ios:
-    distribution_certificate:
-      p12: EncryptedIOSCertificate.p12
-      password: $CERT_PASSWORD
-    provisioning_profile:
-      app_identifier: com.ficode.helloworld
-      profile: ficode_helloworld_distribution.mobileprovision
+      - hello_world/build/app/outputs/flutter-apk/app-release.apk
+      - hello_world/build/ios/ipa/*.ipa
