@@ -1,81 +1,62 @@
 workflows:
-  ios-release-build:
-    name: iOS Release Build
+  ios-workflow:
+    name: iOS HelloWorld Build
     environment:
       vars:
+        APP_ID: "com.ficode.helloworld"
         BUNDLE_ID: "com.ficode.helloworld"
+        APP_NAME: "HelloWorld"
+        XCODE_WORKSPACE: "Runner.xcworkspace"
+        XCODE_SCHEME: "Runner"
         DEVELOPMENT_TEAM: "8QF5HJCTR8"
-        CODE_SIGNING_IDENTITY: "Apple Distribution"
-        PROVISIONING_PROFILE_NAME: "ficode_helloworld_distribution"
+        CODE_SIGN_IDENTITY: "Apple Distribution"
+        PROVISIONING_PROFILE_SPECIFIER: "ficode_helloworld_distribution"
       flutter: stable
-      xcode: 16.3
+      xcode: latest
+      cocoapods: default
+      signing:
+        provisioning_profiles:
+          com.ficode.helloworld: ficode_helloworld_distribution
     scripts:
-      - name: Set up keychain and provisioning
+      - name: Install dependencies
         script: |
-          # Save certificate and provisioning profile to files
-          echo $CERTIFICATE_BASE64 | base64 --decode > signing_certificate.p12
-          echo $PROVISIONING_PROFILE_BASE64 | base64 --decode > profile.mobileprovision
-
-          # Create custom keychain and import certificate
-          security create-keychain -p "pass" build.keychain
-          security default-keychain -s build.keychain
-          security unlock-keychain -p "pass" build.keychain
-          security import signing_certificate.p12 -k build.keychain -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple: -s -k "pass" build.keychain
-
-          # Copy provisioning profile
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          UUID=$(grep -aA1 UUID profile.mobileprovision | grep -io "[-A-F0-9]\{36\}")
-          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
-
-      - name: Flutter clean & pub get
-        script: |
-          flutter clean
           flutter pub get
-
-      - name: Build archive
+          cd ios
+          pod install
+          cd ..
+      - name: Set up keychain and certificates
         script: |
-          flutter build ios --release --no-codesign
+          KEYCHAIN_PASSWORD="codemagic"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" ios-build.keychain
+          security default-keychain -s ios-build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" ios-build.keychain
+          security set-keychain-settings ios-build.keychain
 
-          xcodebuild -workspace ios/Runner.xcworkspace \
-            -scheme Runner \
+          # Import certificate (make sure it's uploaded in the CodeMagic UI as secure ENV VAR)
+          echo $CM_CERTIFICATE | base64 --decode > signing_certificate.p12
+          security import signing_certificate.p12 -k ios-build.keychain -P $CM_CERTIFICATE_PASSWORD -T /usr/bin/codesign
+
+          # Set key partition list (fixes macOS 13+ signing issues)
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" ios-build.keychain
+      - name: Build iOS release
+        script: |
+          flutter build ios --release \
+            --no-codesign \
+            --build-name=1.0.0 \
+            --build-number=1
+          
+          xcodebuild -workspace ios/$XCODE_WORKSPACE \
+            -scheme $XCODE_SCHEME \
             -configuration Release \
-            -archivePath $PWD/build/Runner.xcarchive \
-            archive CODE_SIGN_STYLE=Manual \
+            -archivePath build/ios/archive.xcarchive \
+            archive \
             DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM \
-            PROVISIONING_PROFILE_SPECIFIER=$PROVISIONING_PROFILE_NAME \
-            CODE_SIGN_IDENTITY="$CODE_SIGNING_IDENTITY"
-
-      - name: Generate ExportOptions.plist
-        script: |
-          cat > ios/ExportOptions.plist <<EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key>
-            <string>app-store</string>
-            <key>teamID</key>
-            <string>$DEVELOPMENT_TEAM</string>
-            <key>provisioningProfiles</key>
-            <dict>
-              <key>$BUNDLE_ID</key>
-              <string>$PROVISIONING_PROFILE_NAME</string>
-            </dict>
-            <key>destination</key>
-            <string>export</string>
-            <key>compileBitcode</key>
-            <false/>
-          </dict>
-          </plist>
-          EOF
-
-      - name: Export IPA
-        script: |
+            CODE_SIGN_IDENTITY="$CODE_SIGN_IDENTITY" \
+            PROVISIONING_PROFILE_SPECIFIER="$PROVISIONING_PROFILE_SPECIFIER"
+          
           xcodebuild -exportArchive \
-            -archivePath $PWD/build/Runner.xcarchive \
+            -archivePath build/ios/archive.xcarchive \
             -exportOptionsPlist ios/ExportOptions.plist \
-            -exportPath $PWD/build/ipa
-
+            -exportPath build/ios/out
     artifacts:
-      - build/ipa/*.ipa
+      - build/ios/out/*.ipa
