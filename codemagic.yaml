@@ -2,7 +2,7 @@ workflows:
   ios-workflow:
     environment:
       groups:
-        - your-environment-group
+        - ios
     scripts:
       - |
         echo $CERTIFICATE_BASE64 | base64 --decode > ~/certificate.p12
