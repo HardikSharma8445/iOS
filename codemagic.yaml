@@ -1,18 +1,22 @@
 workflows:
   ios-workflow:
-    name: iOS Build
+    name: iOS Build & Upload
     environment:
       flutter: stable
       xcode: latest
       cocoapods: default
       groups:
-        - ios
+        - ios # Contains CERTIFICATE_BASE64, CERTIFICATE_PASSWORD, PROVISION_PROFILE_BASE64, and APP_STORE_CONNECT_API_KEY
+      vars:
+        APP_ID: com.ficode.helloworld
+        PROVISIONING_PROFILE_NAME: ficode_helloworld_distribution
+        TEAM_ID: H74K77RF8V
     scripts:
-      - name: Move into Flutter project directory
+      - name: Build and export .ipa
         script: |
           cd hello_world
 
-          echo "Running flutter pub get..."
+          echo "Installing dependencies..."
           flutter pub get
 
           echo "Decoding and importing certificate..."
@@ -27,7 +31,25 @@ workflows:
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
 
-          echo "Building iOS app..."
-          flutter build ios --release --no-codesign
+          echo "Building Flutter iOS app..."
+          flutter build ios --release
+
+          echo "Archiving app with xcodebuild..."
+          xcodebuild -workspace ios/Runner.xcworkspace \
+                     -scheme Runner \
+                     -archivePath build/Runner.xcarchive \
+                     archive
+
+          echo "Exporting .ipa for App Store..."
+          xcodebuild -exportArchive \
+                     -archivePath build/Runner.xcarchive \
+                     -exportOptionsPlist ios/ExportOptions.plist \
+                     -exportPath build/ios/ipa
     artifacts:
-      - hello_world/build/ios/iphoneos/Runner.app
+      - hello_world/build/ios/ipa/*.ipa
+
+    publishing:
+      app_store_connect:
+        auth:
+          api_key: $APP_STORE_CONNECT_API_KEY
+        submit_to_testflight: true
