@@ -6,33 +6,24 @@ workflows:
       xcode: latest
       cocoapods: default
       groups:
-        - ios   # Replace with your environment variable group if used
+        - ios
     scripts:
-      # Get dependencies
       - flutter pub get
-
-      # Decode and install certificate and provisioning profile
       - |
         echo $CERTIFICATE_BASE64 | base64 --decode > ~/certificate.p12
         echo $PROVISION_PROFILE_BASE64 | base64 --decode > ~/profile.mobileprovision
-        
+
         security create-keychain -p "" build.keychain
         security default-keychain -s build.keychain
         security unlock-keychain -p "" build.keychain
-        
+
         security import ~/certificate.p12 -k build.keychain -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-        
+
         mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
         cp ~/profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
-        
+
         security set-keychain-settings -t 3600 -u build.keychain
 
-      # Build Flutter iOS app without code signing (Codemagic will handle signing)
       - flutter build ios --release --no-codesign
-
     artifacts:
       - build/ios/iphoneos/Runner.app
-
-    publishing:
-    # You can add steps here to publish to TestFlight/App Store or save artifacts
-
