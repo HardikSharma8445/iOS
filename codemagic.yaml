@@ -1,53 +1,33 @@
 workflows:
   ios-workflow:
-    name: iOS App Store Build with Automatic Signing
-    integrations:
-      app_store_connect: BSM CI/CD Pipeline   # Replace with your integration ID from Codemagic UI
-
+    name: iOS Build
     environment:
-      vars:
-        BUNDLE_ID: "com.ficode.helloworld"
+      flutter: stable
       xcode: latest
       cocoapods: default
-      flutter: stable
       groups:
         - ios
-      node: 16
-
     scripts:
-      - name: Set up keychain and certificates
+      - name: Move into Flutter project directory
         script: |
-          keychain initialize
-          app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE
-          keychain add-certificates
+          cd hello_world
 
-      - name: Flutter build ios
-        script: |
-          flutter clean
+          echo "Running flutter pub get..."
           flutter pub get
+
+          echo "Decoding and importing certificate..."
+          echo $CERTIFICATE_BASE64 | base64 --decode > certificate.p12
+          echo $PROVISION_PROFILE_BASE64 | base64 --decode > profile.mobileprovision
+
+          security create-keychain -p "" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security import certificate.p12 -k build.keychain -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+
+          echo "Building iOS app..."
           flutter build ios --release --no-codesign
-
-      - name: Archive app
-        script: |
-          xcodebuild -workspace ios/Runner.xcworkspace \
-            -scheme Runner \
-            -configuration Release \
-            -archivePath build/ios/archive.xcarchive \
-            -allowProvisioningUpdates \
-            -sdk iphoneos \
-            archive
-
-      - name: Export IPA
-        script: |
-          xcodebuild -exportArchive \
-            -archivePath build/ios/archive.xcarchive \
-            -exportOptionsPlist ios/ExportOptions.plist \
-            -exportPath build/ios/ipa \
-            -allowProvisioningUpdates
-
     artifacts:
-      - build/ios/ipa/*.ipa
-
-    publishing:
-      app_store_connect:
-        auth: integration
+      - hello_world/build/ios/iphoneos/Runner.app
