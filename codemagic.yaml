@@ -1,63 +1,51 @@
 workflows:
-  ios-app-store:
-    name: iOS App Store Build
+  ios-workflow:
+    name: iOS App Store Build with Automatic Signing
     environment:
       vars:
-        XCODE_WORKSPACE: "Runner.xcworkspace"
-        XCODE_SCHEME: "Runner"
         BUNDLE_ID: "com.ficode.helloworld"
-        DEVELOPMENT_TEAM: "8QF5HJCTR8"   # Replace with your actual Team ID
-      xcode: 16.3
+        APP_STORE_ID: "your-app-store-id" # Optional: used for publishing
+      xcode: latest
       cocoapods: default
       flutter: stable
-    scripts:
-      - name: Install dependencies
-        script: |
-          flutter pub get
+      groups:
+        - app-store-credentials
+      node: 16
 
-      - name: Build and archive iOS app
+    scripts:
+      - name: Set up keychain and certificates
         script: |
+          keychain initialize
+          app-store-connect fetch-signing-files "com.ficode.helloworld" --type IOS_APP_STORE
+          keychain add-certificates
+      - name: Flutter build ipa
+        script: |
+          flutter clean
+          flutter pub get
           flutter build ios --release --no-codesign
 
-          xcodebuild clean
-
-          xcodebuild archive \
-            -workspace ios/$XCODE_WORKSPACE \
-            -scheme $XCODE_SCHEME \
+      - name: Archive app
+        script: |
+          xcodebuild -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
             -configuration Release \
             -archivePath build/ios/archive.xcarchive \
-            -destination 'generic/platform=iOS' \
             -allowProvisioningUpdates \
-            CODE_SIGN_STYLE=Automatic \
-            DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM
+            -sdk iphoneos \
+            archive
 
       - name: Export IPA
         script: |
-          cat > ios/exportOptions.plist <<EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key>
-            <string>app-store</string>
-            <key>signingStyle</key>
-            <string>automatic</string>
-            <key>stripSwiftSymbols</key>
-            <true/>
-            <key>compileBitcode</key>
-            <true/>
-            <key>teamID</key>
-            <string>$DEVELOPMENT_TEAM</string>
-          </dict>
-          </plist>
-          EOF
-
           xcodebuild -exportArchive \
             -archivePath build/ios/archive.xcarchive \
-            -exportOptionsPlist ios/exportOptions.plist \
-            -exportPath build/ios/output \
+            -exportOptionsPlist ios/ExportOptions.plist \
+            -exportPath build/ios/ipa \
             -allowProvisioningUpdates
 
     artifacts:
-      - build/ios/output/*.ipa
-      - build/ios/archive.xcarchive
+      - build/ios/ipa/*.ipa
+
+    publishing:
+      app_store_connect:
+        auth: integration
+        app_id: $APP_STORE_ID
