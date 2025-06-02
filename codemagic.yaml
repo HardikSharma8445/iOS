@@ -7,15 +7,11 @@ workflows:
         TEAM_ID: 8QF5HJCTR8
         APP_IDENTIFIER: com.ficode.helloworld
         PROVISIONING_PROFILE_SPECIFIER: ficode_helloworld_distribution
-        EXPORT_METHOD: app-store  # Change to 'ad-hoc' or 'development' as needed
+        EXPORT_METHOD: app-store  # or 'ad-hoc', 'development'
+
       flutter: stable
       xcode: latest
       cocoapods: default
-      signing:
-        ios:
-          certificate: EncryptedIOSCertificate.p12
-          certificate_password: $CERT_PASSWORD
-          provisioning_profile: $PROVISIONING_PROFILE_SPECIFIER
 
     scripts:
       - name: Install dependencies
@@ -40,10 +36,15 @@ workflows:
             -exportOptionsPlist ios/ExportOptions.plist \
             -exportPath $CM_BUILD_DIR/exported | tee export.log | xcbeautify
 
-      - name: Publish artifacts
-        script: |
-          echo "App archived and exported successfully."
-
     artifacts:
       - $CM_BUILD_DIR/exported/*.ipa
       - ios/Runner.xcarchive
+
+code_signing:
+  ios:
+    distribution_certificate:
+      p12: EncryptedIOSCertificate.p12
+      password: $CERT_PASSWORD
+    provisioning_profile:
+      app_identifier: com.ficode.helloworld
+      profile: ficode_helloworld_distribution.mobileprovision
