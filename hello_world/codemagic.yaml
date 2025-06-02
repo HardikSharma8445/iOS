@@ -8,16 +8,19 @@ workflows:
       vars:
         APP_NAME: "hello_world"
       groups:
-        - ios  # this should include CERTIFICATE, CERTIFICATE_PASSWORD, PROVISIONING_PROFILE
+        - ios
     scripts:
       - name: Install dependencies
+        working_directory: hello_world
         script: |
           flutter pub get
       - name: Decode signing files
+        working_directory: hello_world
         script: |
           echo $CERTIFICATE | base64 --decode > certificate.p12
           echo $PROVISIONING_PROFILE | base64 --decode > profile.mobileprovision
       - name: Set up keychain and provisioning profile
+        working_directory: hello_world
         script: |
           KEYCHAIN_PATH="$HOME/Library/Keychains/login.keychain-db"
           security import certificate.p12 -k "$KEYCHAIN_PATH" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
@@ -25,11 +28,12 @@ workflows:
           UUID=$(grep -a -o "UUID[^<]*" profile.mobileprovision | cut -d '>' -f2 | cut -d'<' -f1)
           cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
       - name: Build iOS app
+        working_directory: hello_world
         script: |
           flutter build ios --release
 
     artifacts:
-      - build/ios/ipa/*.ipa
+      - hello_world/build/ios/ipa/*.ipa
 
     publishing:
       email:
