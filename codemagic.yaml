@@ -8,25 +8,28 @@ workflows:
       vars:
         APP_NAME: "hello_world"
       groups:
-        - ios  # This is your variable group with the base64 encoded .p12 and .mobileprovision
+        - ios  # this should include CERTIFICATE, CERTIFICATE_PASSWORD, PROVISIONING_PROFILE
     scripts:
-      - name: Install Flutter dependencies
+      - name: Install dependencies
         script: |
           flutter pub get
-      - name: Build iOS app for release (signed)
+      - name: Decode signing files
+        script: |
+          echo $CERTIFICATE | base64 --decode > certificate.p12
+          echo $PROVISIONING_PROFILE | base64 --decode > profile.mobileprovision
+      - name: Set up keychain and provisioning profile
+        script: |
+          KEYCHAIN_PATH="$HOME/Library/Keychains/login.keychain-db"
+          security import certificate.p12 -k "$KEYCHAIN_PATH" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          UUID=$(grep -a -o "UUID[^<]*" profile.mobileprovision | cut -d '>' -f2 | cut -d'<' -f1)
+          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
+      - name: Build iOS app
         script: |
           flutter build ios --release
 
     artifacts:
       - build/ios/ipa/*.ipa
-
-    code_signing:
-      distribution_type: app_store
-      bundle_identifier: com.ficode.helloworld
-      certificate_url: Encrypted(base64 content of your p12)
-      certificate_password: $CERTIFICATE_PASSWORD
-      provisioning_profile_url: Encrypted(base64 content of your .mobileprovision)
-      signing_certificate: Apple Distribution
 
     publishing:
       email:
