@@ -1,6 +1,9 @@
 workflows:
   ios-workflow:
     name: iOS App Store Build with Automatic Signing
+    integrations:
+      app_store_connect: ficode-ios-connect   # Replace with your integration ID from Codemagic UI
+
     environment:
       vars:
         BUNDLE_ID: "com.ficode.helloworld"
