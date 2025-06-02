@@ -8,6 +8,7 @@ workflows:
       groups:
         - ios
     scripts:
+      - cd hello_world
       - flutter pub get
       - |
         echo $CERTIFICATE_BASE64 | base64 --decode > ~/certificate.p12
@@ -26,4 +27,4 @@ workflows:
 
       - flutter build ios --release --no-codesign
     artifacts:
-      - build/ios/iphoneos/Runner.app
+      - hello_world/build/ios/iphoneos/Runner.app
