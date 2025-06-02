@@ -4,7 +4,6 @@ workflows:
     environment:
       vars:
         BUNDLE_ID: "com.ficode.helloworld"
-        APP_STORE_ID: "your-app-store-id" # Optional: used for publishing
       xcode: latest
       cocoapods: default
       flutter: stable
@@ -16,9 +15,10 @@ workflows:
       - name: Set up keychain and certificates
         script: |
           keychain initialize
-          app-store-connect fetch-signing-files "com.ficode.helloworld" --type IOS_APP_STORE
+          app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE
           keychain add-certificates
-      - name: Flutter build ipa
+
+      - name: Flutter build ios
         script: |
           flutter clean
           flutter pub get
@@ -48,4 +48,3 @@ workflows:
     publishing:
       app_store_connect:
         auth: integration
-        app_id: $APP_STORE_ID
