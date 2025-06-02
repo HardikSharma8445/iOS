@@ -9,11 +9,11 @@ workflows:
         - ios # Contains CERTIFICATE_BASE64, CERTIFICATE_PASSWORD, PROVISION_PROFILE_BASE64
       vars:
         APP_ID: com.ficode.helloworld
+        TEAM_ID: 86L854D6DS
         PROVISIONING_PROFILE_NAME: ficode_helloworld_distribution
-        TEAM_ID: H74K77RF8V
 
     integrations:
-      app_store_connect: appstore-connect # <-- Must match integration name in Codemagic UI
+      app_store_connect: BSM CI/CD Pipeline # This should match the integration name in Codemagic UI
 
     scripts:
       - name: Build and export .ipa
