@@ -1,21 +1,57 @@
 workflows:
-  flutter-workflow:
-    name: Build hello_world app
+  ios-workflow:
+    name: iOS HelloWorld Build
     environment:
-      working_directory: hello_world
       flutter: stable
       xcode: latest
       cocoapods: default
+      vars:
+        APP_NAME: "hello_world"
+        DEVELOPMENT_TEAM: "8QF5HJCTR8"
+        PROVISIONING_PROFILE_NAME: "ficode_helloworld_distribution"
     scripts:
       - name: Install dependencies
-        script: flutter pub get
+        working_directory: hello_world
+        script: |
+          flutter pub get
+          cd ios
+          pod install
+          cd ..
 
-      - name: Build iOS IPA
-        script: flutter build ios --release --no-codesign
+      - name: Decode signing files
+        working_directory: hello_world
+        script: |
+          echo $CERTIFICATE | base64 --decode > certificate.p12
+          echo $PROVISIONING_PROFILE | base64 --decode > profile.mobileprovision
 
-      - name: Build Android APK
-        script: flutter build apk --release
+      - name: Set up keychain and provisioning profile
+        working_directory: hello_world
+        script: |
+          KEYCHAIN_PATH="$HOME/Library/Keychains/login.keychain-db"
+          security import certificate.p12 -k "$KEYCHAIN_PATH" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+
+      - name: Build and archive iOS app
+        working_directory: hello_world
+        script: |
+          xcodebuild -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -archivePath build/ios/archive.xcarchive \
+            DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM \
+            PROVISIONING_PROFILE_SPECIFIER=$PROVISIONING_PROFILE_NAME \
+            archive
+
+          xcodebuild -exportArchive \
+            -archivePath build/ios/archive.xcarchive \
+            -exportOptionsPlist ios/ExportOptions.plist \
+            -exportPath build/ios/out
 
     artifacts:
-      - hello_world/build/app/outputs/flutter-apk/app-release.apk
-      - hello_world/build/ios/ipa/*.ipa
+      - hello_world/build/ios/out/*.ipa
+
+    publishing:
+      email:
+        recipients:
+          - hardik.sharma@ficode.com
