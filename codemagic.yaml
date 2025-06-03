@@ -10,19 +10,15 @@ workflows:
       groups:
         - ios2
     scripts:
-      - name: change directory to hello world
-        script: cd hello_world/
-      - name: Flutter pub get
-        script: flutter pub get
-      - name: Build iOS release
-        script: flutter build ios --release
-      - name: Build IPA with xcodebuild
+      - name: Build and archive iOS app inside project folder
         script: |
+          cd hello_world
+          flutter pub get
+          flutter build ios --release
           xcodebuild -workspace ios/Runner.xcworkspace \
             -scheme Runner \
             -configuration Release \
             -archivePath $CM_BUILD_DIR/build/Runner.xcarchive archive
-
           xcodebuild -exportArchive \
             -archivePath $CM_BUILD_DIR/build/Runner.xcarchive \
             -exportOptionsPlist ios/ExportOptions.plist \
