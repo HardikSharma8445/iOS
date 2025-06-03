@@ -20,7 +20,9 @@ workflows:
           security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
 
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+
+          PROFILE_UUID=$(security cms -D -i profile.mobileprovision | plutil -extract UUID xml1 -o - - | xmllint --xpath "string(//string)" -)
+          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/$PROFILE_UUID.mobileprovision
         working_directory: hello_world
 
       - name: Install dependencies
@@ -36,7 +38,7 @@ workflows:
           xcodebuild -workspace ios/Runner.xcworkspace \
             -scheme Runner \
             -configuration Release \
-            -archivePath $CM_BUILD_DIR/build/Runner.xcarchive \
+            -archivePath build/Runner.xcarchive \
             clean archive \
             CODE_SIGN_STYLE=Manual \
             PROVISIONING_PROFILE_SPECIFIER="ficode_helloworld_distribution" \
@@ -46,9 +48,9 @@ workflows:
       - name: Export IPA
         script: |
           xcodebuild -exportArchive \
-            -archivePath $CM_BUILD_DIR/build/Runner.xcarchive \
+            -archivePath build/Runner.xcarchive \
             -exportOptionsPlist ios/ExportOptions.plist \
-            -exportPath $CM_BUILD_DIR/build/ios/ipa
+            -exportPath build/ios/ipa
         working_directory: hello_world
 
     artifacts:
