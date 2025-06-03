@@ -6,35 +6,21 @@ workflows:
       xcode: latest
       vars:
         APP_ID: "com.ficode.helloworld"
-        CERTIFICATE_PASSWORD: Encrypted  # <-- set this in Codemagic env variables
+        CERTIFICATE_PASSWORD: Encrypted
       groups:
-        - ios2  # Make sure this group includes your API keys
+        - ios2
     scripts:
-      - name: Decode and install certificates
-        script: |
-          echo $CERTIFICATE_BASE64 | base64 --decode > signing_certificate.p12
-          echo $PROVISIONING_PROFILE_BASE64 | base64 --decode > provisioning_profile.mobileprovision
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp provisioning_profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
-          
-          security create-keychain -p "" build.keychain
-          security default-keychain -s build.keychain
-          security unlock-keychain -p "" build.keychain
-          security import signing_certificate.p12 -k build.keychain -P $CERTIFICATE_PASSWORD -T /usr/bin/codesign
-          
-          security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
-
       - name: Flutter pub get
         script: flutter pub get
       - name: Build iOS release
-        script: flutter build ios --release --no-codesign
+        script: flutter build ios --release
       - name: Build IPA with xcodebuild
         script: |
           xcodebuild -workspace ios/Runner.xcworkspace \
             -scheme Runner \
             -configuration Release \
             -archivePath $CM_BUILD_DIR/build/Runner.xcarchive archive
-          
+
           xcodebuild -exportArchive \
             -archivePath $CM_BUILD_DIR/build/Runner.xcarchive \
             -exportOptionsPlist ios/ExportOptions.plist \
@@ -44,3 +30,5 @@ workflows:
     publishing:
       app_store_connect:
         api_key: $APP_STORE_CONNECT_KEY
+        key_id: $APP_STORE_CONNECT_KEY_ID
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
