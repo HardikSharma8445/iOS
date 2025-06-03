@@ -6,7 +6,7 @@ workflows:
       xcode: latest
       cocoapods: default
       groups:
-        - ios
+        - ios2
     scripts:
       - name: Move into Flutter project directory
         script: |
@@ -27,29 +27,7 @@ workflows:
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
 
-          echo "Building Flutter iOS app..."
+          echo "Building iOS app..."
           flutter build ios --release --no-codesign
-
-          echo "Archiving app with xcodebuild..."
-          xcodebuild -workspace ios/Runner.xcworkspace \
-                     -scheme Runner \
-                     -archivePath build/Runner.xcarchive \
-                     archive \
-                     -allowProvisioningUpdates
-
-          echo "Exporting .ipa file..."
-          xcodebuild -exportArchive \
-                     -archivePath build/Runner.xcarchive \
-                     -exportOptionsPlist ios/ExportOptions.plist \
-                     -exportPath build
-
     artifacts:
-      - hello_world/build/*.ipa
-
-    publishing:
-      app_store_connect:
-        api_key: $APP_STORE_CONNECT_API_KEY
-        api_issuer: $APP_STORE_CONNECT_API_ISSUER
-        apple_id: $APPLE_ID
-        app_identifier: com.ficode.helloworld
-        ipa_path: hello_world/build/Runner.ipa
+      - hello_world/build/ios/iphoneos/Runner.app
