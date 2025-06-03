@@ -1,5 +1,6 @@
 workflows:
   ios-workflow:
+    name: iOS Manual Signing Build
     environment:
       flutter: stable
       xcode: latest
@@ -7,21 +8,30 @@ workflows:
         CERTIFICATE_PASSWORD: Encrypted
       groups:
         - ios2
-
     scripts:
-      - name: Setup signing cert and profile
+      - name: Decode and install signing certificate and provisioning profile
         script: |
+          echo "🔐 Setting up certificate and provisioning profile"
+
+          # Decode certificate and profile
           echo $CERTIFICATE_BASE64 | base64 --decode > signing_certificate.p12
           echo $PROVISIONING_PROFILE_BASE64 | base64 --decode > profile.mobileprovision
 
+          # Create and set up keychain
           security create-keychain -p "" build.keychain
           security default-keychain -s build.keychain
           security unlock-keychain -p "" build.keychain
           security import signing_certificate.p12 -k build.keychain -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
 
+          # Extract UUID and copy profile
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" /dev/stdin <<< $(security cms -D -i profile.mobileprovision))
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/$PROFILE_UUID.mobileprovision
+
+          echo "✅ Provisioning profile installed with UUID: $PROFILE_UUID"
+          ls -l ~/Library/MobileDevice/Provisioning\ Profiles/
+        working_directory: hello_world
 
       - name: Install dependencies
         script: flutter pub get
@@ -29,11 +39,6 @@ workflows:
 
       - name: Build Flutter iOS app without signing
         script: flutter build ios --release --no-codesign
-        working_directory: hello_world
-
-      - name: Update project settings for manual signing
-        script: |
-          sed -i '' 's/CODE_SIGN_IDENTITY\[sdk=iphoneos\*\] = "iPhone Developer"/CODE_SIGN_IDENTITY\[sdk=iphoneos\*\] = "Apple Distribution"/' ios/Runner.xcodeproj/project.pbxproj
         working_directory: hello_world
 
       - name: Archive the app with manual signing
@@ -44,9 +49,9 @@ workflows:
             -archivePath $CM_BUILD_DIR/build/Runner.xcarchive \
             clean archive \
             CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
             PROVISIONING_PROFILE_SPECIFIER="ficode_helloworld_distribution" \
-            DEVELOPMENT_TEAM="86L854D6DS"
+            DEVELOPMENT_TEAM="86L854D6DS" \
+            CODE_SIGN_IDENTITY="Apple Distribution"
         working_directory: hello_world
 
       - name: Export IPA
