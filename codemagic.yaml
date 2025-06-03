@@ -1,12 +1,12 @@
 workflows:
   ios-workflow:
-    name: iOS Build
+    name: iOS Build and Upload
     environment:
       flutter: stable
       xcode: latest
       cocoapods: default
       groups:
-        - ios2
+        - ios2  # Make sure this group contains the required environment variables
     scripts:
       - name: Move into Flutter project directory
         script: |
@@ -27,7 +27,20 @@ workflows:
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
 
-          echo "Building iOS app..."
-          flutter build ios --release --no-codesign
+          echo "Building iOS IPA..."
+          flutter build ipa --release --export-options-plist=ExportOptions.plist
+
+      - name: Upload to App Store Connect
+        script: |
+          echo "Creating private key from base64..."
+          echo "$APP_STORE_CONNECT_PRIVATE_KEY" | base64 --decode > AuthKey.p8
+
+          echo "Uploading .ipa to App Store Connect..."
+          xcrun altool --upload-app \
+            --type ios \
+            --file "hello_world/build/ios/ipa/Runner.ipa" \
+            --apiKey "$APP_STORE_CONNECT_KEY_ID" \
+            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
+
     artifacts:
-      - hello_world/build/ios/iphoneos/Runner.app
+      - hello_world/build/ios/ipa/Runner.ipa
