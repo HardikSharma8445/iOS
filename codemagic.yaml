@@ -10,6 +10,8 @@ workflows:
       groups:
         - ios2
     scripts:
+      - name: change directory to hello world
+        script: cd hello_world/
       - name: Flutter pub get
         script: flutter pub get
       - name: Build iOS release
