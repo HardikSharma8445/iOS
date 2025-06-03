@@ -6,19 +6,22 @@ workflows:
       xcode: latest
       vars:
         APP_ID: "com.ficode.helloworld"
-        CERTIFICATE_PASSWORD: Encrypted
+        CERTIFICATE_PASSWORD: Encrypted # Make sure this is set in environment variables
       groups:
-        - ios2
+        - ios2  # This should include your code signing certificate and provisioning profile
     scripts:
-      - name: Build and archive iOS app inside project folder
+      - name: Build and archive iOS app
         script: |
           cd hello_world
           flutter pub get
           flutter build ios --release
+
           xcodebuild -workspace ios/Runner.xcworkspace \
             -scheme Runner \
             -configuration Release \
-            -archivePath $CM_BUILD_DIR/build/Runner.xcarchive archive
+            -archivePath $CM_BUILD_DIR/build/Runner.xcarchive \
+            -allowProvisioningUpdates archive
+
           xcodebuild -exportArchive \
             -archivePath $CM_BUILD_DIR/build/Runner.xcarchive \
             -exportOptionsPlist ios/ExportOptions.plist \
