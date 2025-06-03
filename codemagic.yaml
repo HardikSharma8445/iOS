@@ -1,15 +1,14 @@
 workflows:
   ios-workflow:
-    name: iOS TestFlight Build and Upload
     environment:
       flutter: stable
       xcode: latest
       vars:
-        APP_ID: "com.ficode.helloworld"
+        CERTIFICATE_PASSWORD: Encrypted
       groups:
-        - ios2  # your variable group with APP_STORE credentials
+        - ios2
     scripts:
-      - name: Set up code signing
+      - name: Setup signing cert and profile
         script: |
           echo $CERTIFICATE_BASE64 | base64 --decode > signing_certificate.p12
           echo $PROVISIONING_PROFILE_BASE64 | base64 --decode > profile.mobileprovision
@@ -28,17 +27,20 @@ workflows:
         script: flutter pub get
         working_directory: hello_world
 
-      - name: Build iOS release
+      - name: Build Flutter iOS app without signing
         script: flutter build ios --release --no-codesign
         working_directory: hello_world
 
-      - name: Archive app
+      - name: Archive the app with manual signing
         script: |
           xcodebuild -workspace ios/Runner.xcworkspace \
             -scheme Runner \
             -configuration Release \
             -archivePath $CM_BUILD_DIR/build/Runner.xcarchive \
-            -allowProvisioningUpdates archive
+            clean archive \
+            CODE_SIGN_STYLE=Manual \
+            PROVISIONING_PROFILE_SPECIFIER="ficode_helloworld_distribution" \
+            DEVELOPMENT_TEAM="86L854D6DS"
         working_directory: hello_world
 
       - name: Export IPA
@@ -51,9 +53,3 @@ workflows:
 
     artifacts:
       - build/ios/ipa/*.ipa
-
-    publishing:
-      app_store_connect:
-        api_key: $APP_STORE_CONNECT_KEY
-        key_id: $APP_STORE_CONNECT_KEY_ID
-        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
