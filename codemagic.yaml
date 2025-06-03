@@ -10,12 +10,12 @@ workflows:
       groups:
         - ios2
     scripts:
-      - name: Change to project directory
-        script: cd hello_world/
       - name: Install dependencies
         script: flutter pub get
+        working_directory: hello_world
       - name: Build iOS release
         script: flutter build ios --release
+        working_directory: hello_world
       - name: Archive using xcodebuild
         script: |
           xcodebuild -workspace ios/Runner.xcworkspace \
@@ -23,12 +23,14 @@ workflows:
             -configuration Release \
             -archivePath $CM_BUILD_DIR/build/Runner.xcarchive \
             -allowProvisioningUpdates archive
+        working_directory: hello_world
       - name: Export IPA
         script: |
           xcodebuild -exportArchive \
             -archivePath $CM_BUILD_DIR/build/Runner.xcarchive \
             -exportOptionsPlist ios/ExportOptions.plist \
             -exportPath $CM_BUILD_DIR/build/ios/ipa
+        working_directory: hello_world
     artifacts:
       - build/ios/ipa/*.ipa
     publishing:
