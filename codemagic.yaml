@@ -1,46 +1,46 @@
 workflows:
-  ios-workflow:
-    name: iOS Build and Upload
+  ios-testflight:
+    name: iOS TestFlight Build and Upload
     environment:
       flutter: stable
       xcode: latest
-      cocoapods: default
+      vars:
+        APP_ID: "com.ficode.helloworld"
+        CERTIFICATE_PASSWORD: Encrypted  # <-- set this in Codemagic env variables
       groups:
-        - ios2  # Make sure this group contains the required environment variables
+        - ios2  # Make sure this group includes your API keys
     scripts:
-      - name: Move into Flutter project directory
+      - name: Decode and install certificates
         script: |
-          cd hello_world
-
-          echo "Running flutter pub get..."
-          flutter pub get
-
-          echo "Decoding and importing certificate..."
-          echo $CERTIFICATE_BASE64 | base64 --decode > certificate.p12
-          echo $PROVISION_PROFILE_BASE64 | base64 --decode > profile.mobileprovision
-
+          echo $CERTIFICATE_BASE64 | base64 --decode > signing_certificate.p12
+          echo $PROVISIONING_PROFILE_BASE64 | base64 --decode > provisioning_profile.mobileprovision
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp provisioning_profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+          
           security create-keychain -p "" build.keychain
           security default-keychain -s build.keychain
           security unlock-keychain -p "" build.keychain
-          security import certificate.p12 -k build.keychain -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security import signing_certificate.p12 -k build.keychain -P $CERTIFICATE_PASSWORD -T /usr/bin/codesign
+          
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
 
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
-
-          echo "Building iOS IPA..."
-          flutter build ipa --release --export-options-plist=ExportOptions.plist
-
-      - name: Upload to App Store Connect
+      - name: Flutter pub get
+        script: flutter pub get
+      - name: Build iOS release
+        script: flutter build ios --release --no-codesign
+      - name: Build IPA with xcodebuild
         script: |
-          echo "Creating private key from base64..."
-          echo "$APP_STORE_CONNECT_PRIVATE_KEY" | base64 --decode > AuthKey.p8
-
-          echo "Uploading .ipa to App Store Connect..."
-          xcrun altool --upload-app \
-            --type ios \
-            --file "hello_world/build/ios/ipa/Runner.ipa" \
-            --apiKey "$APP_STORE_CONNECT_KEY_ID" \
-            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
-
+          xcodebuild -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -archivePath $CM_BUILD_DIR/build/Runner.xcarchive archive
+          
+          xcodebuild -exportArchive \
+            -archivePath $CM_BUILD_DIR/build/Runner.xcarchive \
+            -exportOptionsPlist ios/ExportOptions.plist \
+            -exportPath $CM_BUILD_DIR/build/ios/ipa
     artifacts:
-      - hello_world/build/ios/ipa/Runner.ipa
+      - build/ios/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        api_key: $APP_STORE_CONNECT_KEY
