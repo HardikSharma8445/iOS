@@ -6,17 +6,33 @@ workflows:
       xcode: latest
       vars:
         APP_ID: "com.ficode.helloworld"
-        CERTIFICATE_PASSWORD: Encrypted
       groups:
-        - ios2
+        - ios2  # your variable group with APP_STORE credentials
     scripts:
+      - name: Set up code signing
+        script: |
+          echo $CERTIFICATE_BASE64 | base64 --decode > signing_certificate.p12
+          echo $PROVISIONING_PROFILE_BASE64 | base64 --decode > profile.mobileprovision
+
+          security create-keychain -p "" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security import signing_certificate.p12 -k build.keychain -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
+
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+        working_directory: hello_world
+
       - name: Install dependencies
         script: flutter pub get
         working_directory: hello_world
+
       - name: Build iOS release
-        script: flutter build ios --release
+        script: flutter build ios --release --no-codesign
         working_directory: hello_world
-      - name: Archive using xcodebuild
+
+      - name: Archive app
         script: |
           xcodebuild -workspace ios/Runner.xcworkspace \
             -scheme Runner \
@@ -24,6 +40,7 @@ workflows:
             -archivePath $CM_BUILD_DIR/build/Runner.xcarchive \
             -allowProvisioningUpdates archive
         working_directory: hello_world
+
       - name: Export IPA
         script: |
           xcodebuild -exportArchive \
@@ -31,8 +48,10 @@ workflows:
             -exportOptionsPlist ios/ExportOptions.plist \
             -exportPath $CM_BUILD_DIR/build/ios/ipa
         working_directory: hello_world
+
     artifacts:
       - build/ios/ipa/*.ipa
+
     publishing:
       app_store_connect:
         api_key: $APP_STORE_CONNECT_KEY
