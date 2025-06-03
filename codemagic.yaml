@@ -7,6 +7,7 @@ workflows:
         CERTIFICATE_PASSWORD: Encrypted
       groups:
         - ios2
+
     scripts:
       - name: Setup signing cert and profile
         script: |
@@ -20,10 +21,7 @@ workflows:
           security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
 
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-
-          PROFILE_UUID=$(security cms -D -i profile.mobileprovision | plutil -extract UUID xml1 -o - - | xmllint --xpath "string(//string)" -)
-          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/$PROFILE_UUID.mobileprovision
-        working_directory: hello_world
+          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
 
       - name: Install dependencies
         script: flutter pub get
@@ -33,14 +31,20 @@ workflows:
         script: flutter build ios --release --no-codesign
         working_directory: hello_world
 
+      - name: Update project settings for manual signing
+        script: |
+          sed -i '' 's/CODE_SIGN_IDENTITY\[sdk=iphoneos\*\] = "iPhone Developer"/CODE_SIGN_IDENTITY\[sdk=iphoneos\*\] = "Apple Distribution"/' ios/Runner.xcodeproj/project.pbxproj
+        working_directory: hello_world
+
       - name: Archive the app with manual signing
         script: |
           xcodebuild -workspace ios/Runner.xcworkspace \
             -scheme Runner \
             -configuration Release \
-            -archivePath build/Runner.xcarchive \
+            -archivePath $CM_BUILD_DIR/build/Runner.xcarchive \
             clean archive \
             CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
             PROVISIONING_PROFILE_SPECIFIER="ficode_helloworld_distribution" \
             DEVELOPMENT_TEAM="86L854D6DS"
         working_directory: hello_world
@@ -48,9 +52,9 @@ workflows:
       - name: Export IPA
         script: |
           xcodebuild -exportArchive \
-            -archivePath build/Runner.xcarchive \
+            -archivePath $CM_BUILD_DIR/build/Runner.xcarchive \
             -exportOptionsPlist ios/ExportOptions.plist \
-            -exportPath build/ios/ipa
+            -exportPath $CM_BUILD_DIR/build/ios/ipa
         working_directory: hello_world
 
     artifacts:
